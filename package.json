@@ -1,0 +1,60 @@
+{
+	"name": "segflow",
+	"version": "0.0.23",
+	"type": "module",
+	"scripts": {
+		"test": "bun test",
+		"build": "bun run build:client && bun run build:server && bun run build:cli",
+		"build:client": "tsc",
+		"build:server": "bun build src/server/index.ts --minify --outfile=dist/index.js --target bun",
+		"build:cli": "bun build scripts/segflow.ts --minify --outfile=dist/segflow.js --target bun",
+		"prepublishOnly": "bun run build"
+	},
+	"files": ["dist", "package.json"],
+	"main": "./dist/client/sdk.js",
+	"types": "./dist/types/client/sdk.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/types/client/sdk.d.ts",
+			"default": "./dist/client/sdk.js"
+		},
+		"./schema": {
+			"types": "./dist/types/shared/schema.d.ts",
+			"default": "./dist/shared/schema.js"
+		}
+	},
+	"devDependencies": {
+		"@babel/preset-typescript": "^7.26.0",
+		"@biomejs/biome": "1.9.4",
+		"@types/babel__core": "^7.20.5",
+		"@types/babel__generator": "^7.6.8",
+		"@types/bun": "latest",
+		"@types/react": "^18.3.12",
+		"drizzle-kit": "^0.27.1",
+		"react-email": "3.0.2"
+	},
+	"peerDependencies": {
+		"typescript": "^5.6.3"
+	},
+	"dependencies": {
+		"@babel/core": "^7.26.0",
+		"@babel/generator": "^7.26.2",
+		"@react-email/components": "0.0.28",
+		"aws-sdk": "^2.1692.0",
+		"dotenv": "^16.4.5",
+		"drizzle-orm": "^0.36.0",
+		"fast-deep-equal": "^3.1.3",
+		"hono": "^4.6.9",
+		"mysql2": "^3.11.3",
+		"node-sql-parser": "^5.3.3",
+		"quickjs-emscripten": "^0.31.0",
+		"react": "^18.3.1",
+		"react-dom": "18.3.1",
+		"zod": "^3.23.8",
+		"zod-validation-error": "^3.4.0"
+	},
+	"bin": {
+		"segflow-server": "./dist/index.js",
+		"segflow": "./dist/segflow.js"
+	}
+}

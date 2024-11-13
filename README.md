@@ -92,6 +92,36 @@ const config: SegflowConfig<MyUserAttributes> = {
           .from(schema.users)
           .where(sql`${schema.users.attributes}->'$.winback' = true`),
     },
+    'purchasers': {
+      evaluator: (db) =>
+        db.select({ id: schema.users.id })
+          .from(schema.users)
+          .innerJoin(schema.events, eq(schema.events.userId, schema.users.id))
+          .where(eq(schema.events.name, 'purchase'))
+          .groupBy(schema.users.id),
+    },
+    'recently-active': {
+      evaluator: (db) =>
+        db.select({ id: schema.users.id })
+          .from(schema.users)
+          .innerJoin(schema.events, eq(schema.events.userId, schema.users.id))
+          .where(and(
+            eq(schema.events.name, 'login'),
+            sql`${schema.events.createdAt} > NOW() - INTERVAL 7 DAY`
+          ))
+          .groupBy(schema.users.id),
+    },
+    'product-interested': {
+      evaluator: (db) =>
+        db.select({ id: schema.users.id })
+          .from(schema.users)
+          .innerJoin(schema.events, eq(schema.events.userId, schema.users.id))
+          .where(and(
+            eq(schema.events.name, 'page_view'),
+            sql`${schema.events.attributes}->>'$.url' LIKE '/products/%'`
+          ))
+          .groupBy(schema.users.id),
+    },
   },
   campaigns: {
     'welcome-campaign': {
@@ -348,11 +378,38 @@ await client.updateUser('user-123', {
 
 #### Emitting Events
 
+Segflow allows you to track user behavior by emitting events. Events can include arbitrary attributes that you can later use for segmentation or personalization.
+
 ```typescript
-await client.emit('user-123', 'login', {
-  timestamp: Date.now(),
+// Emit a simple event
+await client.emit('user-123', 'login');
+
+// Emit an event with attributes
+await client.emit('user-123', 'purchase', {
+  orderId: 'ord_123',
+  amount: 99.99,
+  items: ['item1', 'item2']
+});
+
+// Track page views
+await client.emit('user-123', 'page_view', {
+  url: '/products',
+  referrer: 'google.com'
 });
 ```
+
+You can also retrieve a user's event history:
+
+```typescript
+const events = await client.getUserEvents('user-123');
+// Returns array of events: [{ name: 'purchase', attributes: { ... }, createdAt: ... }, ...]
+```
+
+These events can be used to:
+- Trigger transactional emails
+- Build user segments based on behavior
+- Analyze user engagement
+- Power personalized campaign content
 
 ### Database Schema
 
@@ -531,3 +588,49 @@ Segflow empowers developers to build sophisticated marketing automation workflow
 ## License
 
 Segflow is open-source software licensed under the BSD Zero Clause License.
+
+### Event-Based Segmentation
+
+You can define segments based on whether users have performed specific events. For example:
+
+```typescript
+segments: {
+  // Users who have made a purchase
+  'purchasers': {
+    evaluator: (db) =>
+      db.select({ id: schema.users.id })
+        .from(schema.users)
+        .innerJoin(schema.events, eq(schema.events.userId, schema.users.id))
+        .where(eq(schema.events.name, 'purchase'))
+        .groupBy(schema.users.id),
+  },
+  
+  // Users who logged in within the last 7 days
+  'recently-active': {
+    evaluator: (db) =>
+      db.select({ id: schema.users.id })
+        .from(schema.users)
+        .innerJoin(schema.events, eq(schema.events.userId, schema.users.id))
+        .where(and(
+          eq(schema.events.name, 'login'),
+          sql`${schema.events.createdAt} > NOW() - INTERVAL 7 DAY`
+        ))
+        .groupBy(schema.users.id),
+  },
+  
+  // Users who viewed a specific product
+  'product-interested': {
+    evaluator: (db) =>
+      db.select({ id: schema.users.id })
+        .from(schema.users)
+        .innerJoin(schema.events, eq(schema.events.userId, schema.users.id))
+        .where(and(
+          eq(schema.events.name, 'page_view'),
+          sql`${schema.events.attributes}->>'$.url' LIKE '/products/%'`
+        ))
+        .groupBy(schema.users.id),
+  },
+}
+```
+
+These segments can then be used to target specific users in your campaigns or to analyze user behavior patterns.

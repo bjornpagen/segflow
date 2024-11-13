@@ -478,6 +478,27 @@ Examples:
   segflow add user123 username='johndoe' email='john@example.com'
 ```
 
+## CLI Configuration
+
+The Segflow CLI can be configured using environment variables or a credentials file. The simplest way is to use environment variables in your project's `.env` file:
+
+```env
+# Required client-side environment variables
+SEGFLOW_URL=http://localhost:3000     # Your Segflow instance URL
+SEGFLOW_API_KEY=0xdeadbeef           # Your API key for authentication
+POSTMARK_API_KEY=your-postmark-key   # If using Postmark as email provider
+```
+
+The CLI will automatically load these environment variables when executing commands. For example:
+
+```bash
+# With environment variables set, you can run commands directly
+segflow push
+segflow emit purchase user123 amount=99.99
+```
+
+If environment variables are not set, the CLI will fall back to looking for credentials in `~/.segflow/credentials.json`. However, using environment variables is recommended for easier development and CI/CD integration.
+
 ## Architectural Decisions
 
 ### Full-Code Configuration

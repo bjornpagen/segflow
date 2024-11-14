@@ -123,8 +123,8 @@ export const campaignUsers = mysqlTable(
 	})
 )
 
-export const campaignExecutionStates = mysqlTable(
-	"campaign_execution_states",
+export const executions = mysqlTable(
+	"executions",
 	{
 		userId: varchar("user_id", { length: VARCHAR_LENGTH }).notNull(),
 		campaignId: varchar("campaign_id", { length: VARCHAR_LENGTH }).notNull(),
@@ -144,15 +144,15 @@ export const campaignExecutionStates = mysqlTable(
 	(table) => ({
 		pk: primaryKey({ columns: [table.userId, table.campaignId] }),
 		userCampaign: foreignKey({
-			name: "ces_user_campaign_fk",
+			name: "e_user_campaign_fk",
 			columns: [table.userId, table.campaignId],
 			foreignColumns: [campaignUsers.userId, campaignUsers.campaignId]
 		}).onDelete("cascade")
 	})
 )
 
-export const campaignExecutionStateHistory = mysqlTable(
-	"campaign_execution_state_history",
+export const executionHistory = mysqlTable(
+	"execution_history",
 	{
 		userId: varchar("user_id", { length: VARCHAR_LENGTH }).notNull(),
 		campaignId: varchar("campaign_id", { length: VARCHAR_LENGTH }).notNull(),
@@ -161,15 +161,15 @@ export const campaignExecutionStateHistory = mysqlTable(
 	},
 	(table) => ({
 		pk: primaryKey({
-			name: "cesh_pk",
+			name: "ehs_pk",
 			columns: [table.userId, table.campaignId, table.stepIndex]
 		}),
-		executionState: foreignKey({
-			name: "cesh_execution_state_fk",
+		execution: foreignKey({
+			name: "ehs_execution_fk",
 			columns: [table.userId, table.campaignId],
 			foreignColumns: [
-				campaignExecutionStates.userId,
-				campaignExecutionStates.campaignId
+				executions.userId,
+				executions.campaignId
 			]
 		}).onDelete("cascade")
 	})

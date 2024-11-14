@@ -434,7 +434,7 @@ export async function createExecution(
 		throw new Error("Campaign not found")
 	}
 
-	await db.insert(schema.campaignExecutionStates).values({
+	await db.insert(schema.executions).values({
 		userId,
 		campaignId,
 		status: "pending",
@@ -481,14 +481,14 @@ async function setupExecutionState(tx: DB, state: ExecutionState) {
 	} else if (state.status === "sleeping") {
 		const history = await tx
 			.select()
-			.from(schema.campaignExecutionStateHistory)
+			.from(schema.executionHistory)
 			.where(
 				and(
-					eq(schema.campaignExecutionStateHistory.userId, state.userId),
-					eq(schema.campaignExecutionStateHistory.campaignId, state.campaignId)
+					eq(schema.executionHistory.userId, state.userId),
+					eq(schema.executionHistory.campaignId, state.campaignId)
 				)
 			)
-			.orderBy(schema.campaignExecutionStateHistory.stepIndex)
+			.orderBy(schema.executionHistory.stepIndex)
 
 		if (history.length === 0) {
 			throw new Error("No execution history found for sleeping state")
@@ -531,15 +531,15 @@ async function handleExecutionCommand(
 				sleepUntil.setDate(sleepUntil.getDate() + duration.weeks * 7)
 
 			await tx
-				.update(schema.campaignExecutionStates)
+				.update(schema.executions)
 				.set({
 					status: "sleeping",
 					sleepUntil
 				})
 				.where(
 					and(
-						eq(schema.campaignExecutionStates.userId, state.userId),
-						eq(schema.campaignExecutionStates.campaignId, state.campaignId)
+						eq(schema.executions.userId, state.userId),
+						eq(schema.executions.campaignId, state.campaignId)
 					)
 				)
 			break
@@ -551,12 +551,12 @@ async function handleExecutionCommand(
 			)
 			await sendTemplateEmail(tx, command.templateId, user.attributes)
 			await tx
-				.update(schema.campaignExecutionStates)
+				.update(schema.executions)
 				.set({ status: "sleeping", sleepUntil: new Date() })
 				.where(
 					and(
-						eq(schema.campaignExecutionStates.userId, state.userId),
-						eq(schema.campaignExecutionStates.campaignId, state.campaignId)
+						eq(schema.executions.userId, state.userId),
+						eq(schema.executions.campaignId, state.campaignId)
 					)
 				)
 			break
@@ -596,7 +596,7 @@ async function processExecution(
 		}
 
 		// Record execution state history
-		await tx.insert(schema.campaignExecutionStateHistory).values({
+		await tx.insert(schema.executionHistory).values({
 			userId: state.userId,
 			campaignId: state.campaignId,
 			stepIndex,
@@ -625,12 +625,12 @@ async function processExecution(
 
 		if (result.done && !result.value) {
 			await tx
-				.update(schema.campaignExecutionStates)
+				.update(schema.executions)
 				.set({ status: "completed" })
 				.where(
 					and(
-						eq(schema.campaignExecutionStates.userId, state.userId),
-						eq(schema.campaignExecutionStates.campaignId, state.campaignId)
+						eq(schema.executions.userId, state.userId),
+						eq(schema.executions.campaignId, state.campaignId)
 					)
 				)
 			return true
@@ -660,15 +660,15 @@ async function processExecution(
 		return true
 	} catch (error) {
 		await tx
-			.update(schema.campaignExecutionStates)
+			.update(schema.executions)
 			.set({
 				status: "failed",
 				error: error instanceof Error ? error.message : "Unknown error"
 			})
 			.where(
 				and(
-					eq(schema.campaignExecutionStates.userId, state.userId),
-					eq(schema.campaignExecutionStates.campaignId, state.campaignId)
+					eq(schema.executions.userId, state.userId),
+					eq(schema.executions.campaignId, state.campaignId)
 				)
 			)
 		return false
@@ -686,14 +686,14 @@ export async function runExecutions(db: DB) {
 		// Use SELECT FOR UPDATE to lock the rows we want to process
 		const readyStates = await tx
 			.select()
-			.from(schema.campaignExecutionStates)
+			.from(schema.executions)
 			.where(
 				and(
-					inArray(schema.campaignExecutionStates.status, [
+					inArray(schema.executions.status, [
 						"sleeping",
 						"pending"
 					]),
-					lte(schema.campaignExecutionStates.sleepUntil, now)
+					lte(schema.executions.sleepUntil, now)
 				)
 			)
 			.for("update")
@@ -701,14 +701,14 @@ export async function runExecutions(db: DB) {
 		// Immediately mark these as running since we have them locked
 		if (readyStates.length > 0) {
 			await tx
-				.update(schema.campaignExecutionStates)
+				.update(schema.executions)
 				.set({ status: "running" })
 				.where(
 					or(
 						...readyStates.map((state) =>
 							and(
-								eq(schema.campaignExecutionStates.userId, state.userId),
-								eq(schema.campaignExecutionStates.campaignId, state.campaignId)
+								eq(schema.executions.userId, state.userId),
+								eq(schema.executions.campaignId, state.campaignId)
 							)
 						)
 					)
@@ -771,15 +771,15 @@ export async function sleepExecution(
 	sleepUntil: Date
 ) {
 	await db
-		.update(schema.campaignExecutionStates)
+		.update(schema.executions)
 		.set({
 			status: "sleeping",
 			sleepUntil
 		})
 		.where(
 			and(
-				eq(schema.campaignExecutionStates.userId, userId),
-				eq(schema.campaignExecutionStates.campaignId, campaignId)
+				eq(schema.executions.userId, userId),
+				eq(schema.executions.campaignId, campaignId)
 			)
 		)
 }
@@ -796,11 +796,11 @@ export async function killExecution(
 ) {
 	const state = await db
 		.select()
-		.from(schema.campaignExecutionStates)
+		.from(schema.executions)
 		.where(
 			and(
-				eq(schema.campaignExecutionStates.userId, userId),
-				eq(schema.campaignExecutionStates.campaignId, campaignId)
+				eq(schema.executions.userId, userId),
+				eq(schema.executions.campaignId, campaignId)
 			)
 		)
 		.limit(1)
@@ -811,15 +811,15 @@ export async function killExecution(
 	}
 
 	await db
-		.update(schema.campaignExecutionStates)
+		.update(schema.executions)
 		.set({
 			status: "terminated",
 			error
 		})
 		.where(
 			and(
-				eq(schema.campaignExecutionStates.userId, userId),
-				eq(schema.campaignExecutionStates.campaignId, campaignId)
+				eq(schema.executions.userId, userId),
+				eq(schema.executions.campaignId, campaignId)
 			)
 		)
 }

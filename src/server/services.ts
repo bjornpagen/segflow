@@ -610,8 +610,8 @@ export async function deleteCampaign(
 		// Kill any active executions
 		const executions = await tx
 			.select()
-			.from(schema.campaignExecutionStates)
-			.where(eq(schema.campaignExecutionStates.campaignId, campaignId))
+			.from(schema.executions)
+			.where(eq(schema.executions.campaignId, campaignId))
 
 		stats.deletedExecutions = executions.length
 

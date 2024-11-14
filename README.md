@@ -1,636 +1,197 @@
-# Segflow
+# Segflow: Zero to Hero Guide
 
-An open-source, self-hosted, full-code alternative to Customer.io.
+## What is Segflow?
 
-## Introduction
+Segflow lets you write marketing automation flows in pure code. Instead of clicking through complex UIs, you can:
+- Define user segments with SQL queries
+- Write campaign logic in TypeScript
+- Create email templates in React
+- Deploy everything with Git
 
-Segflow puts the full power of code into your marketing automation. No more fighting with clunky UIs or platform limitations – write your user engagement logic in pure TypeScript and SQL (Drizzle ORM), exactly how you want it.
+Think "Infrastructure as Code", but for marketing automation.
 
-Want to trigger emails based on complex customer segments? Need to run win-back campaigns with exponential backoff? Build multi-stage campaigns with loops and conditionals? While other platforms like Customer.io force you into rigid workflows, Segflow gives you the turing-completeness of code.
+## 5-Minute Quick Start
 
-Also, no more drag and drop builders! Write your emails in React Email + Tailwind, just like your React components. Get pixel-perfect designs with the tools your designer already knows. Want AI to write your emails? Now it can output actual code, not just marketing copy.
+Let's build a simple winback campaign that emails users who haven't logged in recently, with exponential backoff between attempts.
 
-Deploy your marketing automation just like you deploy your application code. One command (`segflow push`) and your campaigns are live. No separate deployment pipeline, no configuration drift, no surprises.
+### 1. Install Segflow
+```bash
+bun install segflow
+```
 
-Because the best marketing automation is the one you can actually program.
-
-## Quick Example
-
-Here's a glimpse of what you can achieve with Segflow:
-
+### 2. Create a minimal config
 ```typescript
 // segflow.config.ts
-import type { SegflowConfig, UserContext, Runtime } from 'segflow';
-import * as schema from 'segflow/schema';
-import { eq, sql, and } from 'drizzle-orm';
+import type { SegflowConfig } from 'segflow';
+import { eq, sql } from 'drizzle-orm';
 
-// Import email templates
-import WelcomeEmailTemplate from './emails/WelcomeEmailTemplate';
-import WinbackEmailTemplate from './emails/WinbackEmailTemplate';
-import PurchaseConfirmationTemplate from './emails/PurchaseConfirmationTemplate';
-import VIPEmailTemplate from './emails/VIPEmailTemplate';
-
-// Define user attributes
-export interface MyUserAttributes {
-  username: string;
+// Define your user properties
+interface UserAttributes {
   email: string;
-  winback?: boolean;
+  name: string;
+  lastLoginAt: string;
 }
 
-// Segflow configuration
-const config: SegflowConfig<MyUserAttributes> = {
+const config: SegflowConfig<UserAttributes> = {
   emailProvider: {
     config: {
-      name: 'postmark',
-      apiKey: process.env.POSTMARK_API_KEY!,
+      name: "postmark",
+      apiKey: process.env.POSTMARK_API_KEY!
     },
-    fromAddress: 'hello@segflow.io',
+    fromAddress: "hello@example.com"
   },
+
+  // Define email templates with React
   templates: {
-    'welcome-email': {
-      subject: (user) => `Welcome to Segflow, ${user.username}!`,
-      component: WelcomeEmailTemplate,
-    },
-    'winback-email': {
-      subject: (user) => `We miss you, ${user.username}!`,
-      component: WinbackEmailTemplate,
-    },
-    'vip-email': {
-      subject: (user) => `You're one of our VIP customers, ${user.username}!`,
-      component: VIPEmailTemplate,
-    },
+    'winback': {
+      subject: (user) => `We miss you ${user.name}!`,
+      component: ({ user }) => (
+        <div>
+          <h1>Come back and visit us!</h1>
+          <p>Hi {user.name}, we noticed you haven't logged in since {user.lastLoginAt}</p>
+        </div>
+      )
+    }
   },
+
+  // Define user segments with SQL
   segments: {
-    'all-users': {
-      evaluator: (db) => db.select({ id: schema.users.id }).from(schema.users),
-    },
-    'purchased-users': {
-      evaluator: (db) =>
-        db
-          .select({ id: schema.users.id })
-          .from(schema.users)
-          .innerJoin(schema.events, eq(schema.events.userId, schema.users.id))
-          .where(eq(schema.events.name, 'purchase'))
-          .groupBy(schema.users.id),
-    },
-    'big-spenders': {
-      evaluator: (db) =>
-        db
-          .select({ id: schema.users.id })
-          .from(schema.users)
-          .innerJoin(schema.events, eq(schema.events.userId, schema.users.id))
-          .where(eq(schema.events.name, 'purchase'))
-          .groupBy(schema.users.id)
-          .having(
-            sql`sum(${schema.events.attributes}->'$.value') > 1000`,
-          ),
-    },
-    'winback-eligible': {
-      evaluator: (db) =>
-        db
-          .select({ id: schema.users.id })
-          .from(schema.users)
-          .where(sql`${schema.users.attributes}->'$.winback' = true`),
-    },
-    'purchasers': {
-      evaluator: (db) =>
-        db.select({ id: schema.users.id })
-          .from(schema.users)
-          .innerJoin(schema.events, eq(schema.events.userId, schema.users.id))
-          .where(eq(schema.events.name, 'purchase'))
-          .groupBy(schema.users.id),
-    },
-    'recently-active': {
-      evaluator: (db) =>
-        db.select({ id: schema.users.id })
-          .from(schema.users)
-          .innerJoin(schema.events, eq(schema.events.userId, schema.users.id))
-          .where(and(
-            eq(schema.events.name, 'login'),
-            sql`${schema.events.createdAt} > NOW() - INTERVAL 7 DAY`
-          ))
-          .groupBy(schema.users.id),
-    },
-    'product-interested': {
-      evaluator: (db) =>
-        db.select({ id: schema.users.id })
-          .from(schema.users)
-          .innerJoin(schema.events, eq(schema.events.userId, schema.users.id))
-          .where(and(
-            eq(schema.events.name, 'page_view'),
-            sql`${schema.events.attributes}->>'$.url' LIKE '/products/%'`
-          ))
-          .groupBy(schema.users.id),
-    },
+    'inactive-users': {
+      evaluator: (db) => db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(sql`${schema.users.attributes}->>'$.lastLoginAt' < NOW() - INTERVAL 30 DAY`)
+    }
   },
+
+  // Define campaign logic with TypeScript
   campaigns: {
-    'welcome-campaign': {
-      segments: ['all-users'],
-      behavior: 'static',
-      flow: function* (ctx: UserContext<MyUserAttributes>, rt: Runtime) {
-        yield rt.sendEmail('welcome-email');
-      },
-    },
     'winback-campaign': {
-      segments: ['winback-eligible'],
-      behavior: 'dynamic',
-      flow: function* (ctx: UserContext<MyUserAttributes>, rt: Runtime) {
-        for (let i = 0; i < 8; i++) {
-          yield rt.sendEmail('winback-email');
-          yield rt.wait({ days: 2 ** i });
+      segments: ['inactive-users'],
+      behavior: 'dynamic',  // Auto-exits when user becomes active again
+      flow: function* (ctx, rt) {
+        // Send 3 emails with exponential backoff
+        for (let i = 0; i < 3; i++) {
+          yield rt.sendEmail('winback');
+          yield rt.wait({ days: 2 ** i }); // Wait 1, 2, then 4 days
         }
-      },
-    },
-    'vip-treatment': {
-      segments: ['big-spenders'],
-      behavior: 'dynamic',
-      flow: function* (ctx: UserContext<MyUserAttributes>, rt: Runtime) {
-        while (true) {
-          yield rt.sendEmail('vip-email');
-          yield rt.wait({ days: 30 });
-        }
-      },
-    },
-  },
-  transactions: {
-    purchase: {
-      event: 'purchase',
-      subject: (user) => `Order Confirmed, ${user.username}!`,
-      component: PurchaseConfirmationTemplate,
-    },
-  },
-};
-
-export default config;
-```
-
-## Features
-
-- **Full-Code Configuration**: Define user attributes, segments, and campaigns directly in code.
-- **Self-Hosted**: Maintain complete control over your data and infrastructure.
-- **Powerful Segmentation**: Use custom queries for precise user segmentation.
-- **Transactional Emails**: Send personalized emails based on user events.
-- **Flexible Campaigns**: Design static or dynamic campaigns with custom flows.
-- **Extensible Templates**: Create email templates using React components.
-- **Command-Line Interface**: Manage Segflow with ease using the `segflow` CLI.
-
-## Getting Started
-
-### Installation
-
-Install Segflow in your project:
-
-```bash
-bun install segflow
-```
-
-### Configuration
-
-Create a `segflow.config.ts` file in your project's root directory:
-
-```typescript
-// segflow.config.ts
-import type { SegflowConfig, UserContext, Runtime } from 'segflow';
-import { users } from './schema';
-import { eq } from 'drizzle-orm';
-
-// Import email templates
-import WelcomeEmailTemplate from './emails/WelcomeEmailTemplate';
-import PasswordResetEmailTemplate from './emails/PasswordResetEmailTemplate';
-import AccountDeactivationEmailTemplate from './emails/AccountDeactivationEmailTemplate';
-
-// Define user attributes
-export interface MyUserAttributes {
-  username: string;
-  email: string;
-  deactivated?: boolean;
-}
-
-// Segflow configuration
-const config: SegflowConfig<MyUserAttributes> = {
-  emailProvider: {
-    config: {
-      name: 'postmark',
-      apiKey: process.env.POSTMARK_API_KEY!,
-    },
-    fromAddress: 'hello@segflow.io',
-  },
-  templates: {
-    'welcome-email': {
-      subject: (user) => `Welcome to YourApp, ${user.username}!`,
-      component: WelcomeEmailTemplate,
-    },
-    'password-reset-email': {
-      subject: (user) => `Reset Your Password, ${user.username}`,
-      component: PasswordResetEmailTemplate,
-    },
-  },
-  segments: {
-    'all-users': {
-      evaluator: (db) => db.select({ id: users.id }).from(users),
-    },
-  },
-  campaigns: {
-    'welcome-campaign': {
-      segments: ['all-users'],
-      behavior: 'static',
-      flow: function* (ctx: UserContext<MyUserAttributes>, rt: Runtime) {
-        yield rt.sendEmail('welcome-email');
-      },
-    },
-  },
-};
-
-export default config;
-```
-
-### Defining User Attributes
-
-Define the structure of your user attributes:
-
-```typescript
-export interface MyUserAttributes {
-  username: string;
-  email: string;
-  deactivated?: boolean;
-}
-```
-
-### Setting Up Email Templates
-
-Place your email templates in the `emails/` directory. Segflow uses React Email + Tailwind, giving you the full power of React components and modern CSS for your email designs.
-
-#### Welcome Email Template
-
-```typescript
-// emails/WelcomeEmailTemplate.tsx
-import React from 'react';
-import {
-  Body,
-  Container,
-  Head,
-  Heading,
-  Html,
-  Preview,
-  Section,
-  Text,
-  Tailwind,
-  Button,
-} from '@react-email/components';
-import type { MyUserAttributes } from '../segflow.config';
-
-const WelcomeEmailTemplate: React.FC<{ user: MyUserAttributes }> = ({ user }) => {
-  const previewText = "Welcome to our platform!";
-  
-  return (
-    <Html>
-      <Head />
-      <Preview>{previewText}</Preview>
-      <Tailwind>
-        <Body className="bg-white my-auto mx-auto font-sans px-2">
-          <Container className="border border-solid border-[#eaeaea] rounded my-[40px] mx-auto p-[20px] max-w-[465px]">
-            <Heading className="text-black text-[24px] font-normal text-center p-0 my-[30px] mx-0">
-              Welcome to our platform!
-            </Heading>
-            <Text className="text-black text-[14px] leading-[24px]">
-              Hello {user.username},
-            </Text>
-            <Text className="text-black text-[14px] leading-[24px]">
-              We're excited to have you on board.
-            </Text>
-            <Section className="text-center mt-[32px] mb-[32px]">
-              <Button 
-                className="bg-[#000000] rounded text-white text-[12px] font-semibold no-underline text-center px-5 py-3"
-                href="https://your-platform.com/get-started"
-              >
-                Get Started
-              </Button>
-            </Section>
-          </Container>
-        </Body>
-      </Tailwind>
-    </Html>
-  );
-};
-
-export default WelcomeEmailTemplate;
-```
-
-Your email templates are just React components that receive user attributes as props. Use React Email's components for email-safe markup, and style them with Tailwind CSS.
-
-For more examples and components, check out the [React Email documentation](https://react.email/docs/introduction).
-
-#### Password Reset Email Template
-
-```typescript
-// emails/PasswordResetEmailTemplate.tsx
-import React from 'react';
-import { Body, Container, Heading, Text, Button } from '@react-email/components';
-import type { MyUserAttributes } from '../segflow.config';
-
-const PasswordResetEmailTemplate: React.FC<{ user: MyUserAttributes }> = ({ user }) => (
-  <Body>
-    <Container>
-      <Heading>Password Reset Request</Heading>
-      <Text>Hello {user.username},</Text>
-      <Text>Click the button below to reset your password.</Text>
-      <Button href={`https://yourapp.com/reset-password?token=${user.passwordResetToken}`}>
-        Reset Password
-      </Button>
-    </Container>
-  </Body>
-);
-
-export default PasswordResetEmailTemplate;
-```
-
-### Using the Client SDK
-
-Interact with your users and events using the Segflow client SDK.
-
-#### Initializing the Client
-
-```typescript
-import { Client } from 'segflow/client/sdk';
-
-const client = new Client({
-  url: 'https://your-segflow-instance.com',
-  apiKey: 'your-api-key',
-});
-```
-
-#### Creating Users
-
-```typescript
-await client.createUser('user-123', {
-  username: 'johndoe',
-  email: 'john@example.com',
-});
-```
-
-#### Updating Users
-
-```typescript
-await client.updateUser('user-123', {
-  deactivated: true,
-});
-```
-
-#### Emitting Events
-
-Segflow allows you to track user behavior by emitting events. Events can include arbitrary attributes that you can later use for segmentation or personalization.
-
-```typescript
-// Emit a simple event
-await client.emit('user-123', 'login');
-
-// Emit an event with attributes
-await client.emit('user-123', 'purchase', {
-  orderId: 'ord_123',
-  amount: 99.99,
-  items: ['item1', 'item2']
-});
-
-// Track page views
-await client.emit('user-123', 'page_view', {
-  url: '/products',
-  referrer: 'google.com'
-});
-```
-
-You can also retrieve a user's event history:
-
-```typescript
-const events = await client.getUserEvents('user-123');
-// Returns array of events: [{ name: 'purchase', attributes: { ... }, createdAt: ... }, ...]
-```
-
-These events can be used to:
-- Trigger transactional emails
-- Build user segments based on behavior
-- Analyze user engagement
-- Power personalized campaign content
-
-### Database Schema
-
-Your user and event data is stored in a database. Segflow uses Drizzle ORM with MySQL, giving you the full power of SQL for user segmentation and campaign orchestration.
-
-#### Core Tables
-
-- **Users**: Stores user profiles with JSON attributes
-  ```typescript
-  users: {
-    id: string;
-    attributes: { email: string; /* your custom fields */ };
-  }
-  ```
-
-- **Events**: Tracks user activities with timestamps and JSON payloads
-  ```typescript
-  events: {
-    id: number;
-    name: string;        // e.g., "purchase", "login"
-    userId: string;
-    createdAt: Date;
-    attributes: Record<string, any>;  // e.g., { value: 99.99 }
-  }
-  ```
-
-#### Campaign Management
-
-- **Segments**: Defines user groups using SQL queries
-- **Campaigns**: Stores campaign logic as executable flows
-- **Campaign States**: Tracks where each user is in each campaign
-  - Supports states like "pending", "sleeping", "running"
-  - Records execution history for debugging
-
-#### Advanced Features
-
-- **Segment Triggers**: Automatically evaluate segments on events or schedules
-- **Campaign Exclusions**: Prevent users from entering specific campaigns
-- **Transaction Templates**: Handle one-off events like purchase confirmations
-
-All tables use Drizzle ORM, so you can write type-safe queries with full SQL power:
-
-```typescript
-// Example: Find users who spent over $1000
-db.select({ id: schema.users.id })
-  .from(schema.users)
-  .innerJoin(schema.events, eq(schema.events.userId, schema.users.id))
-  .where(eq(schema.events.name, 'purchase'))
-  .groupBy(schema.users.id)
-  .having(sql`sum(${schema.events.attributes}->'$.value') > 1000`)
-```
-
-Check `segflow/schema` for the complete database schema.
-
-## Understanding Campaigns
-
-Campaigns in Segflow are defined using generator functions, allowing you to script complex user flows with ease.
-
-### Static vs. Dynamic Campaigns
-
-- **Static Campaigns**: Users enter the campaign once and progress through the flow without re-entering.
-- **Dynamic Campaigns**: Users enter the campaign once, but as soon as they stop meeting the segment criteria, they are removed from the campaign. (TODO: users will be added back in when they meet the segment criteria again)
-
-### Example: Welcome Campaign
-
-```typescript
-campaigns: {
-  'welcome-campaign': {
-    segments: ['all-users'],
-    behavior: 'static',
-    flow: function* (ctx, rt) {
-      yield rt.sendEmail('welcome-email');
-      yield rt.wait({ days: 1 });
-      yield rt.sendEmail('tips-email');
-    },
-  },
-},
-```
-
-### Example: Re-Engagement Campaign
-
-```typescript
-campaigns: {
-  'reengagement-campaign': {
-    segments: ['inactive-users'],
-    behavior: 'dynamic',
-    flow: function* (ctx, rt) {
-      while (true) {
-        yield rt.sendEmail('we-miss-you-email');
-        yield rt.wait({ days: 7 });
       }
-    },
-  },
-},
+    }
+  }
+};
+
+export default config;
 ```
 
-## Using the Command-Line Interface
-
-Manage your Segflow configurations, users, and events using the `segflow` CLI.
-
-### Installation
-
-Make the script executable:
-
+### 3. Deploy your automation
 ```bash
-bun install segflow
+bun segflow push
 ```
 
-Run the script using:
+### 4. Track user activity
+```typescript
+import { Client } from 'segflow/client';
 
-```bash
-bun segflow
+const client = await Client.initialize({
+  url: 'http://localhost:3000',
+  apiKey: 'your-api-key'
+});
+
+// Create/update users
+await client.createUser('user123', {
+  email: 'jane@example.com',
+  name: 'Jane',
+  lastLoginAt: new Date().toISOString()
+});
+
+// Track events
+await client.emit('user123', 'login');
 ```
 
-### Usage
+That's it! Segflow will automatically:
+1. Identify users who haven't logged in for 30+ days
+2. Add them to the winback campaign
+3. Send emails with increasing delays
+4. Remove users from the campaign if they log in again
 
-```bash
-Usage:
-  segflow push [config-path]                    Push config to server (defaults to ./segflow.config.ts)
-  segflow emit <event> <user-id> [attributes]   Emit event with attributes
-  segflow add <user-id> [attributes]            Add or update user with attributes
+## Key Concepts
 
-Attribute formats:
-  1. Key-value pairs:    username='johndoe' email='john@example.com'
-  2. JSON (with -j):     -j '{"username": "johndoe", "email": "john@example.com"}'
-
-Examples:
-  segflow push
-  segflow emit login user123 timestamp=1625247600
-  segflow add user123 username='johndoe' email='john@example.com'
-```
-
-## CLI Configuration
-
-The Segflow CLI can be configured using environment variables or a credentials file. The simplest way is to use environment variables in your project's `.env` file:
-
-```env
-# Required client-side environment variables
-SEGFLOW_URL=http://localhost:3000     # Your Segflow instance URL
-SEGFLOW_API_KEY=0xdeadbeef           # Your API key for authentication
-POSTMARK_API_KEY=your-postmark-key   # If using Postmark as email provider
-```
-
-The CLI will automatically load these environment variables when executing commands. For example:
-
-```bash
-# With environment variables set, you can run commands directly
-segflow push
-segflow emit purchase user123 amount=99.99
-```
-
-If environment variables are not set, the CLI will fall back to looking for credentials in `~/.segflow/credentials.json`. However, using environment variables is recommended for easier development and CI/CD integration.
-
-## Architectural Decisions
-
-### Full-Code Configuration
-
-Leveraging code for configurations ensures maximum flexibility and version control. Use the power of TypeScript to create complex campaigns and integrate seamlessly with your systems.
-
-### Self-Hosting
-
-Self-hosting grants complete control over your data, crucial for privacy compliance and data security.
-
-### Generator Functions for Campaigns
-
-Using generator functions allows for writing asynchronous workflows in a synchronous style, making complex campaign logic easy to understand and maintain.
-
-### React Email Templates
-
-Craft dynamic and reusable email templates using React, simplifying maintenance and scaling of email campaigns.
-
-## Conclusion
-
-Segflow empowers developers to build sophisticated marketing automation workflows tailored to their unique business needs, all while maintaining full control over their code and data.
-
-## License
-
-Segflow is open-source software licensed under the BSD Zero Clause License.
-
-### Event-Based Segmentation
-
-You can define segments based on whether users have performed specific events. For example:
-
+### Segments = SQL Queries
+Define user groups with the full power of SQL:
 ```typescript
 segments: {
-  // Users who have made a purchase
-  'purchasers': {
-    evaluator: (db) =>
-      db.select({ id: schema.users.id })
-        .from(schema.users)
-        .innerJoin(schema.events, eq(schema.events.userId, schema.users.id))
-        .where(eq(schema.events.name, 'purchase'))
-        .groupBy(schema.users.id),
-  },
-  
-  // Users who logged in within the last 7 days
-  'recently-active': {
-    evaluator: (db) =>
-      db.select({ id: schema.users.id })
-        .from(schema.users)
-        .innerJoin(schema.events, eq(schema.events.userId, schema.users.id))
-        .where(and(
-          eq(schema.events.name, 'login'),
-          sql`${schema.events.createdAt} > NOW() - INTERVAL 7 DAY`
-        ))
-        .groupBy(schema.users.id),
-  },
-  
-  // Users who viewed a specific product
-  'product-interested': {
-    evaluator: (db) =>
-      db.select({ id: schema.users.id })
-        .from(schema.users)
-        .innerJoin(schema.events, eq(schema.events.userId, schema.users.id))
-        .where(and(
-          eq(schema.events.name, 'page_view'),
-          sql`${schema.events.attributes}->>'$.url' LIKE '/products/%'`
-        ))
-        .groupBy(schema.users.id),
-  },
+  'big-spenders': {
+    evaluator: (db) => db
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .innerJoin(schema.events, eq(schema.events.userId, schema.users.id))
+      .where(eq(schema.events.name, 'purchase'))
+      .groupBy(schema.users.id)
+      .having(sql`sum(${schema.events.attributes}->>'$.amount') > 1000`)
+  }
 }
 ```
 
-These segments can then be used to target specific users in your campaigns or to analyze user behavior patterns.
+### Campaigns = Generator Functions
+Write complex flows with regular TypeScript:
+```typescript
+campaigns: {
+  'onboarding': {
+    segments: ['new-users'],
+    behavior: 'static',
+    flow: function* (ctx, rt) {
+      yield rt.sendEmail('welcome');
+      yield rt.wait({ days: 1 });
+      
+      if (!ctx.hasEvent('completed_profile')) {
+        yield rt.sendEmail('complete-profile-reminder');
+      }
+      
+      yield rt.wait({ days: 3 });
+      yield rt.sendEmail('feature-highlights');
+    }
+  }
+}
+```
+
+### Templates = React Components
+Design emails with familiar tools:
+```typescript
+templates: {
+  'welcome': {
+    subject: (user) => `Welcome ${user.name}!`,
+    component: ({ user }) => (
+      <EmailLayout>
+        <Heading>Welcome aboard!</Heading>
+        <Text>Thanks for joining us {user.name}!</Text>
+        <Button href="https://example.com/get-started">
+          Get Started
+        </Button>
+      </EmailLayout>
+    )
+  }
+}
+```
+
+## FAQs
+
+**Q: How often do campaigns run?**  
+A: Campaigns run in real-time. As soon as a user enters a segment, they start receiving the campaign. For `dynamic` campaigns, users exit immediately when they no longer match the segment criteria.
+
+**Q: How do you prevent duplicate sends?**  
+A: Segflow tracks each user's progress through campaigns in its database. Users can only be at one step in a campaign at a time.
+
+**Q: What databases are supported?**  
+A: Segflow uses MySQL to track its own state. Your application can use any database - you just need to send user events to Segflow via its API.
+
+**Q: What email providers are supported?**  
+A: Currently Postmark and Amazon SES. Adding new providers is straightforward through the open-source codebase.
+
+## What's Next?
+
+- [Full Configuration Options](link-to-docs)
+- [Campaign Patterns & Examples](link-to-examples)
+- [Email Template Gallery](link-to-templates)
+- [Contributing Guide](link-to-contributing)
+
+How's this for a first draft? It leads with a concrete example that showcases the code-first approach, then expands into the key concepts. Let me know if you'd like me to adjust the focus or add more details in any area.

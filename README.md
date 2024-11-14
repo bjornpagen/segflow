@@ -24,110 +24,6 @@ A: Segflow uses MySQL to track its own state. Your application can use any datab
 **Q: What email providers are supported?**  
 A: Currently Postmark and Amazon SES. Adding new providers is straightforward through the open-source codebase.
 
-## 5-Minute Quick Start
-
-Let's build a simple winback campaign that emails users who haven't logged in recently, with exponential backoff between attempts.
-
-### 1. Install Segflow
-```bash
-bun install segflow
-```
-
-### 2. Create a minimal config
-```typescript
-// segflow.config.ts
-import type { SegflowConfig } from 'segflow';
-import { eq, sql } from 'drizzle-orm';
-
-// Define your user properties
-interface UserAttributes {
-  email: string;
-  name: string;
-  lastLoginAt: string;
-}
-
-const config: SegflowConfig<UserAttributes> = {
-  emailProvider: {
-    config: {
-      name: "postmark",
-      apiKey: process.env.POSTMARK_API_KEY!
-    },
-    fromAddress: "hello@example.com"
-  },
-
-  // Define email templates with React
-  templates: {
-    'winback': {
-      subject: (user) => `We miss you ${user.name}!`,
-      component: ({ user }) => (
-        <div>
-          <h1>Come back and visit us!</h1>
-          <p>Hi {user.name}, we noticed you haven't logged in since {user.lastLoginAt}</p>
-        </div>
-      )
-    }
-  },
-
-  // Define user segments with SQL
-  segments: {
-    'inactive-users': {
-      evaluator: (db) => db
-        .select({ id: schema.users.id })
-        .from(schema.users)
-        .where(sql`${schema.users.attributes}->>'$.lastLoginAt' < NOW() - INTERVAL 30 DAY`)
-    }
-  },
-
-  // Define campaign logic with TypeScript
-  campaigns: {
-    'winback-campaign': {
-      segments: ['inactive-users'],
-      behavior: 'dynamic',  // Auto-exits when user becomes active again
-      flow: function* (ctx, rt) {
-        // Send 10 emails with exponential backoff
-        for (let i = 0; i < 10; i++) {
-          yield rt.sendEmail('winback');
-          yield rt.wait({ days: 2 ** i }); // Wait 1, 2, then 4 days
-        }
-      }
-    }
-  }
-};
-
-export default config;
-```
-
-### 3. Deploy your automation
-```bash
-bun segflow push
-```
-
-### 4. Track user activity
-```typescript
-import { Client } from 'segflow/client';
-
-const client = await Client.initialize({
-  url: 'http://localhost:3000',
-  apiKey: 'your-api-key'
-});
-
-// Create/update users
-await client.createUser('user123', {
-  email: 'jane@example.com',
-  name: 'Jane',
-  lastLoginAt: new Date().toISOString()
-});
-
-// Track events
-await client.emit('user123', 'login');
-```
-
-That's it! Segflow will automatically:
-1. Identify users who haven't logged in for 30+ days
-2. Add them to the winback campaign
-3. Send emails with increasing delays
-4. Remove users from the campaign if they log in again
-
 ## Key Concepts
 
 ### Segments = SQL Queries
@@ -253,3 +149,107 @@ The key differences between transactions and campaigns:
 2. **Repetition**: Transactions send once per event, campaigns can have multiple steps
 3. **Purpose**: Transactions are for immediate responses to user actions, campaigns are for ongoing engagement
 
+
+## 5-Minute Quick Start
+
+Let's build a simple winback campaign that emails users who haven't logged in recently, with exponential backoff between attempts.
+
+### 1. Install Segflow
+```bash
+bun install segflow
+```
+
+### 2. Create a minimal config
+```typescript
+// segflow.config.ts
+import type { SegflowConfig } from 'segflow';
+import { eq, sql } from 'drizzle-orm';
+
+// Define your user properties
+interface UserAttributes {
+  email: string;
+  name: string;
+  lastLoginAt: string;
+}
+
+const config: SegflowConfig<UserAttributes> = {
+  emailProvider: {
+    config: {
+      name: "postmark",
+      apiKey: process.env.POSTMARK_API_KEY!
+    },
+    fromAddress: "hello@example.com"
+  },
+
+  // Define email templates with React
+  templates: {
+    'winback': {
+      subject: (user) => `We miss you ${user.name}!`,
+      component: ({ user }) => (
+        <div>
+          <h1>Come back and visit us!</h1>
+          <p>Hi {user.name}, we noticed you haven't logged in since {user.lastLoginAt}</p>
+        </div>
+      )
+    }
+  },
+
+  // Define user segments with SQL
+  segments: {
+    'inactive-users': {
+      evaluator: (db) => db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(sql`${schema.users.attributes}->>'$.lastLoginAt' < NOW() - INTERVAL 30 DAY`)
+    }
+  },
+
+  // Define campaign logic with TypeScript
+  campaigns: {
+    'winback-campaign': {
+      segments: ['inactive-users'],
+      behavior: 'dynamic',  // Auto-exits when user becomes active again
+      flow: function* (ctx, rt) {
+        // Send 10 emails with exponential backoff
+        for (let i = 0; i < 10; i++) {
+          yield rt.sendEmail('winback');
+          yield rt.wait({ days: 2 ** i }); // Wait 1, 2, then 4 days
+        }
+      }
+    }
+  }
+};
+
+export default config;
+```
+
+### 3. Deploy your automation
+```bash
+bun segflow push
+```
+
+### 4. Track user activity
+```typescript
+import { Client } from 'segflow/client';
+
+const client = await Client.initialize({
+  url: 'http://localhost:3000',
+  apiKey: 'your-api-key'
+});
+
+// Create/update users
+await client.createUser('user123', {
+  email: 'jane@example.com',
+  name: 'Jane',
+  lastLoginAt: new Date().toISOString()
+});
+
+// Track events
+await client.emit('user123', 'login');
+```
+
+That's it! Segflow will automatically:
+1. Identify users who haven't logged in for 30+ days
+2. Add them to the winback campaign
+3. Send emails with increasing delays
+4. Remove users from the campaign if they log in again

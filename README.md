@@ -186,12 +186,3 @@ A: Segflow uses MySQL to track its own state. Your application can use any datab
 
 **Q: What email providers are supported?**  
 A: Currently Postmark and Amazon SES. Adding new providers is straightforward through the open-source codebase.
-
-## What's Next?
-
-- [Full Configuration Options](link-to-docs)
-- [Campaign Patterns & Examples](link-to-examples)
-- [Email Template Gallery](link-to-templates)
-- [Contributing Guide](link-to-contributing)
-
-How's this for a first draft? It leads with a concrete example that showcases the code-first approach, then expands into the key concepts. Let me know if you'd like me to adjust the focus or add more details in any area.

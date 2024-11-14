@@ -10,6 +10,20 @@ Segflow lets you write marketing automation flows in pure code. Instead of click
 
 Think "Infrastructure as Code", but for marketing automation.
 
+## FAQs
+
+**Q: How often do campaigns run?**  
+A: Campaigns run in real-time. As soon as a user enters a segment, they start receiving the campaign. For `dynamic` campaigns, users exit immediately when they no longer match the segment criteria.
+
+**Q: How do you prevent duplicate sends?**  
+A: Segflow tracks each user's progress through campaigns in its database. Users can only be at one step in a campaign at a time.
+
+**Q: What databases are supported?**  
+A: Segflow uses MySQL to track its own state. Your application can use any database - you just need to send user events to Segflow via its API.
+
+**Q: What email providers are supported?**  
+A: Currently Postmark and Amazon SES. Adding new providers is straightforward through the open-source codebase.
+
 ## 5-Minute Quick Start
 
 Let's build a simple winback campaign that emails users who haven't logged in recently, with exponential backoff between attempts.
@@ -173,16 +187,54 @@ templates: {
 }
 ```
 
-## FAQs
+## Transactions = Event-Triggered Emails
 
-**Q: How often do campaigns run?**  
-A: Campaigns run in real-time. As soon as a user enters a segment, they start receiving the campaign. For `dynamic` campaigns, users exit immediately when they no longer match the segment criteria.
+While campaigns are for ongoing flows, transactions are for immediate, event-triggered emails. Think order confirmations, password resets, or welcome emails that need to go out right when something happens:
 
-**Q: How do you prevent duplicate sends?**  
-A: Segflow tracks each user's progress through campaigns in its database. Users can only be at one step in a campaign at a time.
+````typescript
+transactions: {
+  'purchase-confirmation': {
+    event: 'purchase',  // Triggered when 'purchase' event is emitted
+    subject: (user) => `Order Confirmed, ${user.name}!`,
+    component: ({ user }) => (
+      <EmailLayout>
+        <Heading>Thanks for your order!</Heading>
+        <Text>Hi {user.name}, we've received your purchase.</Text>
+      </EmailLayout>
+    )
+  },
+  'password-reset': {
+    event: 'reset_password_requested',
+    subject: (user) => `Reset Your Password`,
+    component: ({ user, event }) => (
+      <EmailLayout>
+        <Heading>Password Reset</Heading>
+        <Text>Click the link below to reset your password:</Text>
+        <Button href={event.attributes.resetLink}>
+          Reset Password
+        </Button>
+      </EmailLayout>
+    )
+  }
+}
+````
 
-**Q: What databases are supported?**  
-A: Segflow uses MySQL to track its own state. Your application can use any database - you just need to send user events to Segflow via its API.
+To trigger a transactional email, just emit the corresponding event:
 
-**Q: What email providers are supported?**  
-A: Currently Postmark and Amazon SES. Adding new providers is straightforward through the open-source codebase.
+````typescript
+// This will instantly send the purchase confirmation email
+await client.emit('user123', 'purchase', {
+  orderId: 'ord_123',
+  amount: 99.99
+});
+
+// This will instantly send the password reset email
+await client.emit('user123', 'reset_password_requested', {
+  resetLink: 'https://example.com/reset/abc123'
+});
+````
+
+The key differences between transactions and campaigns:
+1. **Timing**: Transactions send immediately when events occur, campaigns run based on segments
+2. **Repetition**: Transactions send once per event, campaigns can have multiple steps
+3. **Purpose**: Transactions are for immediate responses to user actions, campaigns are for ongoing engagement

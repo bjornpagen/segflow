@@ -195,30 +195,39 @@ templates: {
 ## Transactions = Event-Triggered Emails
 
 While campaigns are for ongoing flows, transactions are for immediate, event-triggered emails. Think order confirmations, password resets, or welcome emails that need to go out right when something happens:
-
 ````typescript
 transactions: {
   'purchase-confirmation': {
     event: 'purchase',  // Triggered when 'purchase' event is emitted
     subject: (user) => `Order Confirmed, ${user.name}!`,
     component: ({ user }) => (
-      <EmailLayout>
-        <Heading>Thanks for your order!</Heading>
-        <Text>Hi {user.name}, we've received your purchase.</Text>
-      </EmailLayout>
+      <Html>
+        <Head />
+        <Tailwind>
+          <Body>
+            <Preview>Thanks for your order!</Preview>
+            <Text className="text-slate-600">Hi {user.name}, we've received your purchase.</Text>
+          </Body>
+        </Tailwind>
+      </Html>
     )
   },
   'password-reset': {
     event: 'reset_password_requested',
     subject: (user) => `Reset Your Password`,
     component: ({ user, event }) => (
-      <EmailLayout>
-        <Heading>Password Reset</Heading>
-        <Text>Click the link below to reset your password:</Text>
-        <Button href={event.attributes.resetLink}>
-          Reset Password
-        </Button>
-      </EmailLayout>
+      <Html>
+        <Head />
+        <Tailwind>
+          <Body>
+            <Preview>Reset your password</Preview>
+            <Text className="text-slate-600">Click the link below to reset your password:</Text>
+            <Button href={event.attributes.resetLink}>
+              Reset Password
+            </Button>
+          </Body>
+        </Tailwind>
+      </Html>
     )
   }
 }
@@ -243,3 +252,4 @@ The key differences between transactions and campaigns:
 1. **Timing**: Transactions send immediately when events occur, campaigns run based on segments
 2. **Repetition**: Transactions send once per event, campaigns can have multiple steps
 3. **Purpose**: Transactions are for immediate responses to user actions, campaigns are for ongoing engagement
+

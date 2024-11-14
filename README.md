@@ -8,7 +8,7 @@ Segflow lets you write marketing automation flows in pure code. Instead of click
 - Create email templates in React
 - Deploy everything with Git
 
-Think "Infrastructure as Code", but for marketing automation.
+Think "Infrastructure as Code", but for marketing automation. See the example in `examples/segflow.config.ts` for a complete example.
 
 ## FAQs
 

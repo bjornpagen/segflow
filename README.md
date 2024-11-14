@@ -70,8 +70,8 @@ const config: SegflowConfig<UserAttributes> = {
       segments: ['inactive-users'],
       behavior: 'dynamic',  // Auto-exits when user becomes active again
       flow: function* (ctx, rt) {
-        // Send 3 emails with exponential backoff
-        for (let i = 0; i < 3; i++) {
+        // Send 10 emails with exponential backoff
+        for (let i = 0; i < 10; i++) {
           yield rt.sendEmail('winback');
           yield rt.wait({ days: 2 ** i }); // Wait 1, 2, then 4 days
         }
@@ -127,7 +127,7 @@ segments: {
       .innerJoin(schema.events, eq(schema.events.userId, schema.users.id))
       .where(eq(schema.events.name, 'purchase'))
       .groupBy(schema.users.id)
-      .having(sql`sum(${schema.events.attributes}->>'$.amount') > 1000`)
+      .having(sql`sum(${schema.events.attributes}->'$.amount') > 1000`)
   }
 }
 ```

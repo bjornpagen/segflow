@@ -170,7 +170,7 @@ campaigns: {
 
 ### Templates = React Components
 Design emails with familiar tools:
-```typescript
+```tsx
 templates: {
   'welcome': {
     subject: (user) => `Welcome ${user.name}!`,
@@ -195,7 +195,7 @@ templates: {
 ## Transactions = Event-Triggered Emails
 
 While campaigns are for ongoing flows, transactions are for immediate, event-triggered emails. Think order confirmations, password resets, or welcome emails that need to go out right when something happens:
-````typescript
+```tsx
 transactions: {
   'purchase-confirmation': {
     event: 'purchase',  // Triggered when 'purchase' event is emitted
@@ -231,11 +231,11 @@ transactions: {
     )
   }
 }
-````
+```
 
 To trigger a transactional email, just emit the corresponding event:
 
-````typescript
+```typescript
 // This will instantly send the purchase confirmation email
 await client.emit('user123', 'purchase', {
   orderId: 'ord_123',
@@ -246,7 +246,7 @@ await client.emit('user123', 'purchase', {
 await client.emit('user123', 'reset_password_requested', {
   resetLink: 'https://example.com/reset/abc123'
 });
-````
+```
 
 The key differences between transactions and campaigns:
 1. **Timing**: Transactions send immediately when events occur, campaigns run based on segments

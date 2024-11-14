@@ -176,7 +176,7 @@ templates: {
     subject: (user) => `Welcome ${user.name}!`,
     component: ({ user }) => (
       <Html>
-      <Head />
+        <Head />
         <Tailwind>
           <Body>
             <Preview className="text-blue-600">Welcome aboard!</Preview>

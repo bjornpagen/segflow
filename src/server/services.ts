@@ -32,6 +32,7 @@ import {
 import { eq, inArray, sql } from "drizzle-orm"
 import { analyzeConfig, executeConfigDelta } from "./config"
 
+// TODO: Check path
 export async function createUser(
 	db: MySql2Database<typeof schema>,
 	id: string,
@@ -51,6 +52,7 @@ export async function createUser(
 	return updates!
 }
 
+// TODO: Check path
 export async function updateUser(
 	db: MySql2Database<typeof schema>,
 	userId: string,
@@ -101,6 +103,7 @@ export async function getUser<T extends Record<string, any>>(
 	return user[0].attributes
 }
 
+// TODO: Check path
 export async function deleteUser(
 	db: MySql2Database<typeof schema>,
 	userId: string
@@ -108,6 +111,7 @@ export async function deleteUser(
 	await db.delete(schema.users).where(eq(schema.users.id, userId))
 }
 
+// TODO: Check path
 export async function createEvent(
 	db: MySql2Database<typeof schema>,
 	userId: string,
@@ -171,6 +175,7 @@ export async function getUserEvents(
 		.where(eq(schema.events.userId, userId))
 }
 
+// TODO: Check path
 export async function createSegment(
 	db: MySql2Database<typeof schema>,
 	segmentId: string,
@@ -292,6 +297,7 @@ export async function deleteSegment(
 	})
 }
 
+// TODO: Check path
 export async function updateSegment(
 	db: MySql2Database<typeof schema>,
 	segmentId: string,
@@ -505,6 +511,7 @@ export async function createConfig(
 	return noChanges ? undefined : newConfigId
 }
 
+// TODO: Check path
 export async function createCampaign(
 	db: MySql2Database<typeof schema>,
 	id: string,
@@ -587,6 +594,7 @@ export async function createCampaign(
 	}
 }
 
+// TODO: Check path
 export async function deleteCampaign(
 	db: MySql2Database<typeof schema>,
 	campaignId: string
@@ -615,8 +623,9 @@ export async function deleteCampaign(
 
 		stats.deletedExecutions = executions.length
 
+		// TODO: why are we doing this? they're gonna get deleted by cascade
 		for (const execution of executions) {
-			await killExecution(tx, execution.userId, campaignId, "Campaign deleted")
+			await killExecution(tx, execution.userId, execution.campaignId, "Campaign deleted")
 		}
 
 		// Delete the campaign (this will cascade to all related tables)

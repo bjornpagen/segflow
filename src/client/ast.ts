@@ -1,6 +1,8 @@
 import { type Node, parse, types as t } from "@babel/core"
 import generate from "@babel/generator"
 
+// TODO: figure out what the hell is going on here
+
 function transformAST(ast: Node) {
 	function traverseNode(node: any) {
 		if (!node || typeof node !== "object") return
@@ -23,10 +25,9 @@ function transformAST(ast: Node) {
 					value.elements = value.elements.map((element: any) => {
 						if (shouldWrapExpression(element)) {
 							if (containsJSX(element)) {
-								// Throw error if expression contains JSX
-								throw new Error(
-									`Expressions containing JSX in 'children' are not yet supported.`
-								)
+								// Instead of throwing an error, traverse the JSX expression
+								traverseNode(element)
+								return element
 							} else {
 								return t.stringLiteral(`<%= ${generate(element).code} %>`)
 							}
@@ -39,10 +40,8 @@ function transformAST(ast: Node) {
 					// Handle cases where 'children' is not an array
 					if (shouldWrapExpression(value)) {
 						if (containsJSX(value)) {
-							// Throw error if expression contains JSX
-							throw new Error(
-								`Expressions containing JSX in 'children' are not yet supported.`
-							)
+							// Traverse the JSX expression instead of throwing an error
+							traverseNode(value)
 						} else {
 							node.value = t.stringLiteral(`<%= ${generate(value).code} %>`)
 						}
@@ -53,8 +52,15 @@ function transformAST(ast: Node) {
 			} else {
 				// For other attributes
 				if (shouldWrapExpression(value)) {
-					// Directly wrap the expression
-					node.value = t.stringLiteral(`<%= ${generate(value).code} %>`)
+					if (containsJSX(value)) {
+						// Traverse the JSX expression
+						traverseNode(value)
+					} else {
+						// Directly wrap the expression
+						node.value = t.stringLiteral(`<%= ${generate(value).code} %>`)
+					}
+				} else {
+					traverseNode(value)
 				}
 			}
 		} else {

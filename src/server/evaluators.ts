@@ -443,6 +443,7 @@ export async function createExecution(
 }
 
 type ExecutionState = {
+	id: number
 	userId: string
 	campaignId: string
 	status: string
@@ -482,12 +483,7 @@ async function setupExecutionState(tx: DB, state: ExecutionState) {
 		const history = await tx
 			.select()
 			.from(schema.executionHistory)
-			.where(
-				and(
-					eq(schema.executionHistory.userId, state.userId),
-					eq(schema.executionHistory.campaignId, state.campaignId)
-				)
-			)
+			.where(eq(schema.executionHistory.executionId, state.id))
 			.orderBy(schema.executionHistory.stepIndex)
 
 		if (history.length === 0) {
@@ -536,12 +532,7 @@ async function handleExecutionCommand(
 					status: "sleeping",
 					sleepUntil
 				})
-				.where(
-					and(
-						eq(schema.executions.userId, state.userId),
-						eq(schema.executions.campaignId, state.campaignId)
-					)
-				)
+				.where(eq(schema.executions.id, state.id))
 			break
 		}
 		case "SEND_EMAIL": {
@@ -553,12 +544,7 @@ async function handleExecutionCommand(
 			await tx
 				.update(schema.executions)
 				.set({ status: "sleeping", sleepUntil: new Date() })
-				.where(
-					and(
-						eq(schema.executions.userId, state.userId),
-						eq(schema.executions.campaignId, state.campaignId)
-					)
-				)
+				.where(eq(schema.executions.id, state.id))
 			break
 		}
 		case "SEND_SMS": {
@@ -597,8 +583,7 @@ async function processExecution(
 
 		// Record execution state history
 		await tx.insert(schema.executionHistory).values({
-			userId: state.userId,
-			campaignId: state.campaignId,
+			executionId: state.id,
 			stepIndex,
 			attributes: user.attributes
 		})
@@ -628,10 +613,7 @@ async function processExecution(
 				.update(schema.executions)
 				.set({ status: "completed" })
 				.where(
-					and(
-						eq(schema.executions.userId, state.userId),
-						eq(schema.executions.campaignId, state.campaignId)
-					)
+					eq(schema.executions.id, state.id)
 				)
 			return true
 		} else if (!result.value) {
@@ -665,12 +647,7 @@ async function processExecution(
 				status: "failed",
 				error: error instanceof Error ? error.message : "Unknown error"
 			})
-			.where(
-				and(
-					eq(schema.executions.userId, state.userId),
-					eq(schema.executions.campaignId, state.campaignId)
-				)
-			)
+			.where(eq(schema.executions.id, state.id))
 		return false
 	}
 }
@@ -703,16 +680,7 @@ export async function runExecutions(db: DB) {
 			await tx
 				.update(schema.executions)
 				.set({ status: "running" })
-				.where(
-					or(
-						...readyStates.map((state) =>
-							and(
-								eq(schema.executions.userId, state.userId),
-								eq(schema.executions.campaignId, state.campaignId)
-							)
-						)
-					)
-				)
+				.where(inArray(schema.executions.id, readyStates.map((s) => s.id)))
 		}
 
 		const results = await Promise.all(
@@ -766,8 +734,7 @@ async function sendTemplateEmail<T extends BaseUserAttributes>(
  */
 export async function sleepExecution(
 	db: DB,
-	userId: string,
-	campaignId: string,
+	executionId: number,
 	sleepUntil: Date
 ) {
 	await db
@@ -776,12 +743,7 @@ export async function sleepExecution(
 			status: "sleeping",
 			sleepUntil
 		})
-		.where(
-			and(
-				eq(schema.executions.userId, userId),
-				eq(schema.executions.campaignId, campaignId)
-			)
-		)
+		.where(eq(schema.executions.id, executionId))
 }
 
 /**
@@ -794,19 +756,23 @@ export async function killExecution(
 	campaignId: string,
 	error = "Campaign membership ended"
 ) {
-	const state = await db
-		.select()
+
+	// it's ok to kill based on userId and campaignId
+	// it uniquely identifies an active single user-campaign
+	const execution = await db
+		.select({ id: schema.executions.id })
 		.from(schema.executions)
 		.where(
 			and(
 				eq(schema.executions.userId, userId),
-				eq(schema.executions.campaignId, campaignId)
+				eq(schema.executions.campaignId, campaignId),
+				inArray(schema.executions.status, ["sleeping", "pending", "running"])
 			)
 		)
 		.limit(1)
 		.then((rows) => rows[0])
 
-	if (!state) {
+	if (!execution) {
 		return // Already cleaned up or never existed
 	}
 
@@ -816,12 +782,7 @@ export async function killExecution(
 			status: "terminated",
 			error
 		})
-		.where(
-			and(
-				eq(schema.executions.userId, userId),
-				eq(schema.executions.campaignId, campaignId)
-			)
-		)
+		.where(eq(schema.executions.id, execution.id))
 }
 
 export async function evaluateUserSegmentsAfterEvent(
@@ -1123,25 +1084,13 @@ export async function reevaluateUserMembershipsAfterAttributeChange(
 
 	const campaignUpdates = await evaluateUserCampaigns(db, userId)
 
-	// Handle new campaign memberships
+	// When a user is added to either a static or dynamic campaign, we need to create an execution for them
 	for (const campaignId of campaignUpdates.added) {
 		await createExecution(db, userId, campaignId)
 	}
 
-	// Get all non-static campaigns from the removed set
-	const dynamicCampaigns = await db
-		.select({ id: schema.campaigns.id })
-		.from(schema.campaigns)
-		.where(
-			and(
-				inArray(schema.campaigns.id, campaignUpdates.removed),
-				eq(schema.campaigns.behavior, "dynamic")
-			)
-		)
-
-	// Kill executions for dynamic campaigns only
-	for (const campaign of dynamicCampaigns) {
-		await killExecution(db, userId, campaign.id, reason)
+	for (const campaignId of campaignUpdates.removed) {
+		await killExecution(db, userId, campaignId, reason)
 	}
 
 	return { segmentUpdates, campaignUpdates }

@@ -304,10 +304,11 @@ async function createTemplateObject<T extends BaseUserAttributes>(
 		`return ${transformedComponent};`
 	)(...Object.values(ctx))
 
-	const html = (await render(React.createElement(NewComponent))).replace(
-		/&lt;%=\s*(.*?)\s*%&gt;/g,
-		"<%=$1%>"
-	)
+		const html = (await render(React.createElement(NewComponent))).replace(
+			/&lt;%=\s*(.*?)\s*%&gt;/g,
+			"<%=$1%>"
+		)
+
 
 	return { subject: subject.toString(), html, preamble }
 }

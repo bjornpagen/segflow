@@ -126,8 +126,13 @@ export const campaignUsers = mysqlTable(
 export const executions = mysqlTable(
 	"executions",
 	{
-		userId: varchar("user_id", { length: VARCHAR_LENGTH }).notNull(),
-		campaignId: varchar("campaign_id", { length: VARCHAR_LENGTH }).notNull(),
+		id: int("id").autoincrement().primaryKey(),
+		userId: varchar("user_id", { length: VARCHAR_LENGTH })
+			.references(() => users.id, { onDelete: "cascade" })
+			.notNull(),
+		campaignId: varchar("campaign_id", { length: VARCHAR_LENGTH })
+			.references(() => campaigns.id, { onDelete: "cascade" })
+			.notNull(),
 		sleepUntil: timestamp("sleep_until").notNull().defaultNow(),
 		status: varchar("status", { length: VARCHAR_LENGTH })
 			.$type<
@@ -142,35 +147,28 @@ export const executions = mysqlTable(
 		error: varchar("error", { length: VARCHAR_LENGTH })
 	},
 	(table) => ({
-		pk: primaryKey({ columns: [table.userId, table.campaignId] }),
-		userCampaign: foreignKey({
-			name: "e_user_campaign_fk",
-			columns: [table.userId, table.campaignId],
-			foreignColumns: [campaignUsers.userId, campaignUsers.campaignId]
-		}).onDelete("cascade")
+		pk: primaryKey({ columns: [table.id] })
 	})
 )
 
 export const executionHistory = mysqlTable(
 	"execution_history",
 	{
-		userId: varchar("user_id", { length: VARCHAR_LENGTH }).notNull(),
-		campaignId: varchar("campaign_id", { length: VARCHAR_LENGTH }).notNull(),
+		executionId: int("execution_id")
+			.references(() => executions.id, { onDelete: "cascade" })
+			.notNull(),
 		stepIndex: int("step_index").notNull(),
 		attributes: json("attributes").$type<UserAttributes<any>>().notNull()
 	},
 	(table) => ({
 		pk: primaryKey({
 			name: "ehs_pk",
-			columns: [table.userId, table.campaignId, table.stepIndex]
+			columns: [table.executionId, table.stepIndex]
 		}),
 		execution: foreignKey({
 			name: "ehs_execution_fk",
-			columns: [table.userId, table.campaignId],
-			foreignColumns: [
-				executions.userId,
-				executions.campaignId
-			]
+			columns: [table.executionId],
+			foreignColumns: [executions.id]
 		}).onDelete("cascade")
 	})
 )

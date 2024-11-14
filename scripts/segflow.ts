@@ -148,6 +148,22 @@ async function addUser(
 	}
 }
 
+async function updateUser(
+	userId: string,
+	attributes: Record<string, any>
+) {
+	const credentials = await getCredentials()
+	const client = await Client.initialize(credentials)
+
+	try {
+		await client.updateUser(userId, attributes)
+		console.log("✅ User updated successfully")
+	} catch (e) {
+		console.error("❌ Failed to update user:", e)
+		process.exit(1)
+	}
+}
+
 async function main() {
 	const [command, ...args] = process.argv.slice(2)
 
@@ -197,6 +213,18 @@ async function main() {
 				console.error("❌", e instanceof Error ? e.message : e)
 				process.exit(1)
 			}
+			break
+		}
+
+		case "update": {
+			const [userId, ...restArgs] = args
+
+			if (!userId) {
+				console.error("Usage: segflow update <user-id> [attributes]")
+				process.exit(1)
+			}
+
+			await updateUser(userId, parseAttributes(restArgs))
 			break
 		}
 

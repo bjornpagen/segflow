@@ -157,7 +157,7 @@ campaigns: {
       yield rt.sendEmail('welcome');
       yield rt.wait({ days: 1 });
       
-      if (!ctx.hasEvent('completed_profile')) {
+      if (!ctx.user.profileCompleted) {
         yield rt.sendEmail('complete-profile-reminder');
       }
       
@@ -175,13 +175,18 @@ templates: {
   'welcome': {
     subject: (user) => `Welcome ${user.name}!`,
     component: ({ user }) => (
-      <EmailLayout>
-        <Heading>Welcome aboard!</Heading>
-        <Text>Thanks for joining us {user.name}!</Text>
-        <Button href="https://example.com/get-started">
-          Get Started
-        </Button>
-      </EmailLayout>
+      <Html>
+      <Head />
+        <Tailwind>
+          <Body>
+            <Preview className="text-blue-600">Welcome aboard!</Preview>
+            <Text className="text-slate-600">Thanks for joining us {user.name}!</Text>
+            <Button href="https://example.com/get-started">
+              Get Started
+            </Button>
+          </Body>
+        </Tailwind>
+      </Html>
     )
   }
 }

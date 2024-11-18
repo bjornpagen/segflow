@@ -104,7 +104,7 @@ transactions: {
           <Body>
             <Preview>Reset your password</Preview>
             <Text className="text-slate-600">Click the link below to reset your password:</Text>
-            <Button href={event.attributes.resetLink}>
+            <Button href={event.resetLink}>
               Reset Password
             </Button>
           </Body>

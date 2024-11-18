@@ -41,6 +41,7 @@ campaigns: {
       
       if (!ctx.user.profileCompleted) {
         yield rt.sendEmail('complete-profile-reminder');
+        yield rt.wait({ days: 3 });
       }
       
       yield rt.wait({ days: 3 });

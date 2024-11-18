@@ -10,20 +10,6 @@ Segflow lets you write marketing automation flows in pure code. Instead of click
 
 Think "Infrastructure as Code", but for marketing automation. See the example in `examples/segflow.config.ts` for a complete example.
 
-## FAQs
-
-**Q: How often do campaigns run?**  
-A: Campaigns run in real-time. As soon as a user enters a segment, they start receiving the campaign. For `dynamic` campaigns, users exit immediately when they no longer match the segment criteria.
-
-**Q: How do you prevent duplicate sends?**  
-A: Segflow tracks each user's progress through campaigns in its database. Users can only be at one step in a campaign at a time.
-
-**Q: What databases are supported?**  
-A: Segflow uses MySQL to track its own state. Your application can use any database - you just need to send user events to Segflow via its API.
-
-**Q: What email providers are supported?**  
-A: Currently Postmark and Amazon SES. Adding new providers is straightforward through the open-source codebase.
-
 ## Key Concepts
 
 ### Segments = SQL Queries
@@ -253,3 +239,17 @@ That's it! Segflow will automatically:
 2. Add them to the winback campaign
 3. Send emails with increasing delays
 4. Remove users from the campaign if they log in again
+
+## FAQs
+
+**Q: How often do campaigns run?**  
+A: Campaigns run in real-time. As soon as a user enters a segment, they start receiving the campaign. For `dynamic` campaigns, users exit immediately when they no longer match the segment criteria.
+
+**Q: How do you prevent duplicate sends?**  
+A: Segflow tracks each user's progress through campaigns in its database. Users can only be at one step in a campaign at a time.
+
+**Q: What databases are supported?**  
+A: Segflow uses MySQL to track its own state. Your application can use any database - you just need to send user events to Segflow via its API.
+
+**Q: What email providers are supported?**  
+A: Currently Postmark and Amazon SES. Adding new providers is straightforward through the open-source codebase.
